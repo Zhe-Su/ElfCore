@@ -6,7 +6,6 @@
 // Synthesis/simulation switches used in submodules
 `define SINTESI_RTL
 
-// ---- Merged from gate_delay_specs.v ----
 `define notDelay 35
 `define andDelay 55
 `define orDelay 55
@@ -22,7 +21,6 @@
 `define FlipFlopDelayR 90
 `define mullerCDelay 70
 
-// ---- Merged from architectural_specs.v ----
 `define OCCUPANCY 4
 `define mux2x1Delay 100
 `define mux3x1Delay 120
