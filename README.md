@@ -4,6 +4,92 @@
 - `ELFCORE_core.scala`, `ELFCORE.scala`: Chisel sources (core and top with PSP BlackBox).
 - `ELFCORE_tb.scala`: ChiselTest harness (dataset-style training and inference).
 - `async_serdes/PSP.v` (+ submodules): production SERDES used in synthesis.
+  - Top-level selects between Scala PSP model and Verilog PSP BlackBox via `USE_VERILOG_PSP`.
+
+## Async SerDes (PSP)
+- Consists of `PtoS` (parallel→serial) and `StoP` (serial→parallel) with two‑phase handshakes:
+  - `PtoS`: `ReqIn/AckIn` on the parallel side, `ReqOut/AckOut` on the serial side, `DataIn[36:0] → DataOut`.
+  - `StoP`: `ReqIn/AckIn` on the serial side, `ReqOut/AckOut` on the parallel side, `DataIn → DataOut[36:0]`.
+- Configurable delay controls: `d_m_setup`, `d_m_hold`, `d_ps_hold` (2‑bit each) select programmable path delays in submodules.
+- Default bandwidth is 37 bits; timing uses `timescale 1ps/1ps` with nominal `period=5000` ps and `matched_delay=1000` ps in the standalone TB.
+
+### Signals and handshake
+- Two‑phase (toggle) protocol on each interface:
+  - Sender toggles `Req` to signal a new transfer; receiver toggles `Ack` to accept.
+  - Back‑pressure: before the next toggle, wait until `Req == Ack` on that interface.
+- `rst` is active‑high and asynchronously initializes internal state to empty/idle.
+
+### Parameters and delays
+- `BW` in `PSP.v` sets width (default 37). Both `PtoS` and `StoP` use `OCCUPANCY=BW` internally.
+- Delay knobs (2‑bit each, 0..3):
+  - `d_m_setup`: extra delay on mouse‑trap request path (setup of data/control).
+  - `d_m_hold`: extra delay on mouse‑trap acknowledge path (hold margin).
+  - `d_ps_hold`: extra delay on P→S acknowledge aggregation (write trigger hold).
+- Use plusargs in the TB to sweep these: `+D_M_SETUP`, `+D_M_HOLD`, `+D_PS_HOLD`.
+
+### Data framing and bit order
+- `PtoS` emits 1 bit per handshake on `ReqOut_PS`; `StoP` assembles one word per handshake on `ReqOut_SP`.
+- Bit order depends on internal pointer wiring; verify with a known pattern (e.g., `100..0`, `010..0`) and adjust post‑processing if needed. The TB captures 37 serial bits into a 37‑bit word in order of arrival.
+
+### Standalone SerDes testbench
+`async_serdes/PSP_tb.sv` can run PS and/or SP flows with plusargs and user‑defined stimulus files.
+
+Run examples:
+```bash
+# PS-only: feed 37-bit words; capture serialized output bits
+vsim work.PSP_tb +DISABLE_SP +IN_PS=stim/ps_in.txt +OUT_PS=out/ps_out.txt \
+  +D_M_SETUP=0 +D_M_HOLD=0 +D_PS_HOLD=0 +DRAIN_PS=50000 +TIMEOUT=200000
+
+# SP-only: feed serial bits; capture 37-bit words
+vsim work.PSP_tb +DISABLE_PS +IN_SP=stim/sp_in.txt +OUT_SP=out/sp_out.txt \
+  +D_M_SETUP=0 +D_M_HOLD=0 +DRAIN_SP=10000
+
+# Both paths (default files if not provided): test_PS.txt, sim_output_PS.txt, test_SP.txt, sim_output_SP.txt
+vsim work.PSP_tb
+```
+
+Plusargs supported:
+- `+DISABLE_PS`, `+DISABLE_SP`: disable a path.
+- `+IN_PS=<file>`, `+OUT_PS=<file>`: PS input/output files.
+- `+IN_SP=<file>`, `+OUT_SP=<file>`: SP input/output files.
+- `+D_M_SETUP=<0..3>`, `+D_M_HOLD=<0..3>`, `+D_PS_HOLD=<0..3>`: programmable delays.
+- `+DRAIN_PS=<ps>`, `+DRAIN_SP=<ps>`: post‑EOF drain before finish.
+- `+TIMEOUT=<ps>`: optional simulation timeout.
+
+Input file formats:
+- PS input (`+IN_PS`): one 37‑bit binary word per line (e.g., `101...`), consumed per request toggle.
+- SP input (`+IN_SP`): binary tokens (`0`/`1`) separated by whitespace; each token is one serial bit.
+
+Example PS input (37‑bit words):
+```text
+0000000000000000000000000000000000001
+1000000000000000000000000000000000000
+1111111111111111111111111111111111111
+```
+
+Example SP input (serial bits):
+```text
+1 0 1 1 0 0 1
+```
+
+### Compile and run with Questa/ModelSim
+```bash
+cd ElfCore/async_serdes
+vlib work
+vlog +acc +define+SINTESI_RTL PSP_submodels.v PtoS.v StoP.v PSP.v PSP_tb.sv
+vsim -c work.PSP_tb +DISABLE_SP +IN_PS=../stim/ps_in.txt +OUT_PS=../out/ps_out.txt \
+  +D_M_SETUP=0 +D_M_HOLD=0 +D_PS_HOLD=0 +DRAIN_PS=50000 +TIMEOUT=200000 -do "run -all; quit"
+```
+
+### Waveform/debug tips
+- Probe `ReqIn_*`, `AckIn_*`, `ReqOut_*`, `AckOut_*`, and `Data*` signals to verify two‑phase toggles line up.
+- Check that each `ReqOut_PS` toggle increments the collected bit count and produces one `DataOut_PS` bit.
+- For `StoP`, ensure a full word is produced only when `ReqOut_SP` toggles.
+
+### Common pitfalls
+- Driving both PS and SP paths without disabling one can cause overlapping resets or shared control in a single TB; use `+DISABLE_PS`/`+DISABLE_SP` to isolate paths when debugging.
+- Mismatched bit order when comparing against golden files; validate with one‑hot patterns and adjust comparison.
+- Forgotten file closure or no finish condition; the TB now closes files, drains, and finishes automatically, with optional `+TIMEOUT`.
 
 ## Architecture and Working Flow (detailed)
 - Global FSM (one tick per phase transition unless pipelined):
@@ -49,6 +135,10 @@
 - Output layer (supervised stage):
   - Output activity from `outTrace` (Q1.15) or `oneur_u` s16 integrator (KAPPA leak with stochastic rounding).
   - Three‑factor supervised update of `wout` using `error · STE(y_post) · preOutLane` (12‑bit presyn per lane), with stochastic ±1 byte updates.
+
+- Input-activity normalization and gating:
+  - `i_norm` uses aer-count per tick scaled by `cfg_i_scale/cfg_i_shift` and optionally normalized by number of outputs using a reciprocal-LUT (supports up to 256 outputs).
+  - A global gate `cfg_thr_i` must be met for hidden updates.
 
 - Stage gating (no e‑prop dependency):
   - Stage 1 (unsupervised): hidden learners + DST enabled; output learner disabled.
@@ -133,3 +223,4 @@ sbt test
 - In simulation, the top uses a Scala PSP model; synthesis uses the real `PSP.v` BlackBox (HasBlackBoxPath) and async SERDES submodules.
 - SRAM wrappers implement 2-cycle read-modify-write to honor bit-level masks for sub-byte fields.
 - Add CDC timing exceptions for PSP domains (StoP/PtoS) in STA; resets/delays are explicitly wired in the top.
+ - Testbench now uses a deterministic RNG seed for reproducibility.

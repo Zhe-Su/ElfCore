@@ -11,6 +11,8 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
 
   it should "run inference and learning cycles and assert properties" in {
     test(new ELFCOREChisel(USE_VERILOG_PSP=false)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+      // Deterministic RNG for reproducible tests
+      val rng = new scala.util.Random(0xC0FFEE)
       // Helpers: drive module's explicit io.clk using the tester's implicit clock
       def step(n: Int = 1): Unit = {
         (0 until n).foreach { _ =>
@@ -141,7 +143,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
       // One full cycle with label
       pulseSample();
       dut.io.LABEL_VALID.poke(true.B); dut.io.LABEL_INDEX.poke(3.U)
-      (0 until 8).foreach { _ => aerSendAddr(scala.util.Random.nextInt(dut.N_INP)) }
+      (0 until 8).foreach { _ => aerSendAddr(rng.nextInt(dut.N_INP)) }
       // Verify PROP1 activity: aer_cnt_tick > 0 (diag subpage 6)
       val aerCntProp1 = spiReadWord(spiHdrDiagRead((1 << 13) | (6 << 8))).toInt & 0xFF
       assert(aerCntProp1 > 0, s"Expected aer_cnt_tick > 0 in PROP1, got ${aerCntProp1}")
@@ -200,7 +202,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
       // Two cycles without labels
       (0 until 2).foreach { _ =>
         pulseSample();
-        (0 until 12).foreach { _ => aerSendAddr(scala.util.Random.nextInt(dut.N_INP)) }
+        (0 until 12).foreach { _ => aerSendAddr(rng.nextInt(dut.N_INP)) }
         pulseTick(); pulseTick();
       }
 
@@ -223,7 +225,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
       // Enable config and initialize a few weight rows with random data
       spiSendWord(spiHdrCfgWrite(0x0000)); spiSendWord(BigInt("0000003F", 16))
       // Randomize first 8 rows of winp, wrec, and wout
-      def rand8(): Int = scala.util.Random.nextInt(256)
+      def rand8(): Int = rng.nextInt(256)
       for (r <- 0 until 8) {
         // write 4x32b chunks into one 128b row using wsel=0..3
         for (wsel <- 0 until 4) {
@@ -271,10 +273,10 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
         spiSendWord(spiHdrCfgWrite(subpageAddr(104))); spiSendWord(1) // stage supervised
         (0 until epochs).foreach { _ =>
           (0 until samplesPerEpoch).foreach { _ =>
-            val lbl = scala.util.Random.nextInt(16)
+            val lbl = rng.nextInt(16)
             dut.io.LABEL_VALID.poke(true.B); dut.io.LABEL_INDEX.poke(lbl.U)
             pulseSample(); dut.io.LABEL_VALID.poke(false.B)
-            (0 until 12).foreach { _ => aerSendAddr(scala.util.Random.nextInt(dut.N_INP)) }
+            (0 until 12).foreach { _ => aerSendAddr(rng.nextInt(dut.N_INP)) }
             pulseTick(); pulseTick()
             // Consume SEND handshake
             var guard = 0
@@ -296,10 +298,10 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
         spiSendWord(spiHdrCfgWrite(subpageAddr(104))); spiSendWord(1) // supervised stage for OL path
         var correct = 0
         (0 until samples).foreach { _ =>
-          val lbl = scala.util.Random.nextInt(16)
+          val lbl = rng.nextInt(16)
           dut.io.LABEL_VALID.poke(false.B); dut.io.LABEL_INDEX.poke(lbl.U)
           pulseSample()
-          (0 until 12).foreach { _ => aerSendAddr(scala.util.Random.nextInt(dut.N_INP)) }
+          (0 until 12).foreach { _ => aerSendAddr(rng.nextInt(dut.N_INP)) }
           pulseTick(); pulseTick()
           // Read winner via SPI diag winner register
           val w = spiReadWord(spiHdrDiagReadWinner()).toInt

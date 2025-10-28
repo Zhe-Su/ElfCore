@@ -999,12 +999,18 @@ class ELFCORECoreChisel(
   // i_norm based on normalization mode
   val i_raw = Cat(0.U(24.W), aer_cnt_tick)
   val i_div = Wire(UInt(32.W))
-  val neuron_count = (cfg_num_out_neur + 1.U)(4,0)
-  val neuron_count32 = Cat(0.U(27.W), neuron_count)
+  val neuron_count9 = (cfg_num_out_neur + 1.U)(8,0) // support up to 256
+  val recipQ12 = VecInit((0 to 256).map { n =>
+    val v = if (n == 0) 0 else ((1 << 12) + (n/2)) / n // rounded 1/n in Q12
+    v.U(16.W)
+  })
+  val recip = recipQ12(Mux(neuron_count9 > 256.U, 256.U, neuron_count9)) // Q12
+  val div_lut_wide = (i_raw * recip)(47,0) // 32+16 bits
+  val i_div_lut = (div_lut_wide >> 12).asUInt()(31,0)
   i_div := MuxLookup(cfg_sim_norm_mode, i_raw, Seq(
     0.U -> i_raw, // none
-    1.U -> i_raw, // by spike count already represented by aer_cnt_tick
-    2.U -> (i_raw / Mux(neuron_count32 === 0.U, 1.U, neuron_count32))
+    1.U -> i_raw, // already normalized by aer_cnt_tick semantics
+    2.U -> Mux(neuron_count === 0.U, i_raw, i_div_lut)
   ))
   val i_norm = ((i_div * cfg_i_scale) >> cfg_i_shift)(31,0)
   val i_gate = i_norm >= cfg_thr_i
@@ -1394,7 +1400,7 @@ class ELFCORECoreChisel(
         }.otherwise {
           // Commit one coalesced write for this half if any lane updated
           when (l1_acc_mask.orR) {
-            ctrl_winp_cs := true.B; ctrl_winp_we := true.B; ctrl_winp_a := aI
+          ctrl_winp_cs := true.B; ctrl_winp_we := true.B; ctrl_winp_a := aI
             ctrl_winp_m  := l1_acc_mask
             ctrl_winp_d  := l1_acc_data
             assert(ctrl_winp_m.orR, "L1 write mask must be non-empty when writing")
@@ -1406,7 +1412,7 @@ class ELFCORECoreChisel(
             l1_slot_half := 1.U; l1_slot_idx := 0.U; l1_acc_mask := 0.U; l1_acc_data := 0.U
             l1_state := LState.POST
           }.otherwise {
-            l1_state := LState.NEXT
+        l1_state := LState.NEXT
           }
         }
       }
@@ -1511,7 +1517,7 @@ class ELFCORECoreChisel(
           l2_state    := LState.POST
         }.otherwise {
           when (l2_acc_mask.orR) {
-            ctrl_wrec_cs := true.B; ctrl_wrec_we := true.B; ctrl_wrec_a := aR
+          ctrl_wrec_cs := true.B; ctrl_wrec_we := true.B; ctrl_wrec_a := aR
             ctrl_wrec_m  := l2_acc_mask
             ctrl_wrec_d  := l2_acc_data
             assert(ctrl_wrec_m.orR, "L2 write mask must be non-empty when writing")
@@ -1521,7 +1527,7 @@ class ELFCORECoreChisel(
             l2_slot_half := 1.U; l2_slot_idx := 0.U; l2_acc_mask := 0.U; l2_acc_data := 0.U
             l2_state := LState.POST
           }.otherwise {
-            l2_state := LState.NEXT
+        l2_state := LState.NEXT
           }
         }
       }
@@ -1553,7 +1559,7 @@ class ELFCORECoreChisel(
   }
 
   when ((state === State.PROP1) || (state === State.PROP2)) {
-  switch (eState) {
+    switch (eState) {
       is (EState.WAIT) {
         eNextState := EState.CNT
       }
@@ -1564,7 +1570,7 @@ class ELFCORECoreChisel(
           neur256_cnt := 0.U
         }.otherwise {
           // if any event pending, process one
-        when (aer_has_evt) { eNextState := EState.EVT }
+          when (aer_has_evt) { eNextState := EState.EVT }
           .otherwise { neur256_cnt := neur256_cnt + 1.U }
         }
       }
@@ -1617,7 +1623,7 @@ class ELFCORECoreChisel(
           when ((i.U <= cfg_num_out_neur) && (winAcc(i) > mVal)) { mVal = winAcc(i); mIdx = i.U }
         }
         accMaxIdx := mIdx; accMaxVal := mVal
-  val sendIdx = Mux(io.INFER_ACC, accMaxIdx, winnerIdx_w)
+        val sendIdx = Mux(io.INFER_ACC, accMaxIdx, winnerIdx_w)
         out_data_r := Cat(0.U(4.W), sendIdx(3,0))
       }.otherwise {
         when (cfg_single_label) {
@@ -1831,11 +1837,12 @@ class ELFCORECoreChisel(
     val rdVec     = Wire(Vec(16, UInt(8.W)))
     val rdHold    = Reg(Vec(16, UInt(8.W)))
     val rdEn      = WireDefault(false.B)
+    val rdValid   = RegInit(false.B)
     rdVec := mem.read(Mux(wrPending, wrAddr, io.a), rdEn)
+    rdValid := rdEn
 
     when (io.cs && !io.we && !wrPending) {
       rdEn := true.B
-      qReg := Cat(rdVec.reverse)
     }.elsewhen (io.cs && io.we && !wrPending) {
       // Launch read for RMW
       rdEn := true.B
@@ -1855,6 +1862,8 @@ class ELFCORECoreChisel(
       mem.write(wrAddr, nextBytes, VecInit(Seq.fill(16)(true.B)))
       wrPending := false.B
     }
+    // Register read data one cycle after rdEn for clean timing
+    when (rdValid && !wrPending) { qReg := Cat(rdVec.reverse) }
     io.q := qReg
   }
   class Sram4096x128 extends Module {
@@ -1875,11 +1884,12 @@ class ELFCORECoreChisel(
     val rdVec     = Wire(Vec(16, UInt(8.W)))
     val rdHold    = Reg(Vec(16, UInt(8.W)))
     val rdEn      = WireDefault(false.B)
+    val rdValid   = RegInit(false.B)
     rdVec := mem.read(Mux(wrPending, wrAddr, io.a), rdEn)
+    rdValid := rdEn
 
     when (io.cs && !io.we && !wrPending) {
       rdEn := true.B
-      qReg := Cat(rdVec.reverse)
     }.elsewhen (io.cs && io.we && !wrPending) {
       rdEn := true.B
       wrPending := true.B
@@ -1896,6 +1906,7 @@ class ELFCORECoreChisel(
       mem.write(wrAddr, nextBytes, VecInit(Seq.fill(16)(true.B)))
       wrPending := false.B
     }
+    when (rdValid && !wrPending) { qReg := Cat(rdVec.reverse) }
     io.q := qReg
   }
   class Sram512x128 extends Module {
@@ -1916,11 +1927,12 @@ class ELFCORECoreChisel(
     val rdVec     = Wire(Vec(16, UInt(8.W)))
     val rdHold    = Reg(Vec(16, UInt(8.W)))
     val rdEn      = WireDefault(false.B)
+    val rdValid   = RegInit(false.B)
     rdVec := mem.read(Mux(wrPending, wrAddr, io.a), rdEn)
+    rdValid := rdEn
 
     when (io.cs && !io.we && !wrPending) {
       rdEn := true.B
-      qReg := Cat(rdVec.reverse)
     }.elsewhen (io.cs && io.we && !wrPending) {
       rdEn := true.B
       wrPending := true.B
@@ -1937,6 +1949,7 @@ class ELFCORECoreChisel(
       mem.write(wrAddr, nextBytes, VecInit(Seq.fill(16)(true.B)))
       wrPending := false.B
     }
+    when (rdValid && !wrPending) { qReg := Cat(rdVec.reverse) }
     io.q := qReg
   }
 
@@ -2073,7 +2086,7 @@ class ELFCORECoreChisel(
           var bestScore = zero24
           var bestIdx9  = 0.U(9.W)
           var bestEnt   = 0.U(4.W)
-          for (e <- 0 until 16) {
+            for (e <- 0 until 16) {
             val sc = rg_heap_score1(cur_grp)(e)
             when (sc > bestScore) { bestScore = sc; bestIdx9 = rg_heap_index1(cur_grp)(e); bestEnt = e.U }
           }
@@ -2182,7 +2195,7 @@ class ELFCORECoreChisel(
           var bestScore = zero24
           var bestIdx9  = 0.U(9.W)
           var bestEnt   = 0.U(4.W)
-          for (e <- 0 until 16) {
+            for (e <- 0 until 16) {
             val sc = rg_heap_score2(cur_grp)(e)
             when (sc > bestScore) { bestScore = sc; bestIdx9 = rg_heap_index2(cur_grp)(e); bestEnt = e.U }
           }
@@ -2314,7 +2327,7 @@ when (do_contr1){ sim_contr_h1:= satAdd32(sim_contr_h1, p_con) }
         // REGROW feed: score = |(t_hist - t_prev) * ste| (Q8.8 -> take upper 24b)
         val diff = (t_hist.zext() - t_prev.zext()).asSInt
         val score24 = (diff.asSInt * ste.zext().asSInt).abs().asUInt()(23,0)
-      val index9  = Cat(b.U(2.W), h1_step_idx)
+        val index9  = Cat(b.U(2.W), h1_step_idx)
       updateRgHeap(score24, index9, b.U, rg_heap_score1, rg_heap_index1, effHeapPerGroup(cfg_prune_k_h1))
         h1_spk_cnt_tick := Mux(h1_spk_cnt_tick === 65535.U, h1_spk_cnt_tick, h1_spk_cnt_tick + spk.asUInt)
         // Snapshots (circular): write hist at current hist wptr; write prev at current prev wptr (on SAMPLE advance)
@@ -2485,11 +2498,11 @@ when (do_contr2){ sim_contr_h2:= satAdd32(sim_contr_h2, p_con2) }
             // Increment output accumulation bucket or oneur integrator
             val idx = (h2_row_idx(M_OUT-1,0) % (cfg_num_out_neur + 1.U))(M_OUT-1,0)
             when (!cfg_use_oneur) {
-              val curr = outCnt(idx)
-              outCnt(idx) := curr + 1.U
-              val trc = outTrace(idx)
-              val inc = 8.U(16.W)
-              outTrace(idx) := Mux(trc > ("hFFFF".U(16.W) - inc), "hFFFF".U, trc + inc)
+            val curr = outCnt(idx)
+            outCnt(idx) := curr + 1.U
+            val trc = outTrace(idx)
+            val inc = 8.U(16.W)
+            outTrace(idx) := Mux(trc > ("hFFFF".U(16.W) - inc), "hFFFF".U, trc + inc)
             }.otherwise {
               // Read output weights row and add selected byte to oneur_u
               ctrl_wout_cs := true.B; ctrl_wout_we := false.B; ctrl_wout_a := Cat(0.U(5.W), h2_row_idx)
@@ -2816,6 +2829,8 @@ when (do_contr2){ sim_contr_h2:= satAdd32(sim_contr_h2, p_con2) }
   when (state === State.SEND && nextState === State.IDLE) {
     last_presyn_vld := false.B
   }
+  // Also clear on new SAMPLE rise to avoid carrying presyn across samples
+  when (sample_rise) { last_presyn_vld := false.B }
 }
 
 
