@@ -1,4 +1,5 @@
-# ELFCORE - Architecture, SPI Map, and Testbench Flow
+# ElfCore: A 28nm Neural Processor Enabling Dynamic Structured Sparse Training and Online Self-Supervised Learning with Activity-Dependent Weight Update
+
 
 ## Overview
 ElfCore is a 28‑nm digital spiking neural network processor tailored for event‑driven sensory signal processing. It is the first to efficiently integrate:
