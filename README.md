@@ -6,6 +6,32 @@
 - `async_serdes/PSP.v` (+ submodules): production SERDES used in synthesis.
   - Top-level selects between Scala PSP model and Verilog PSP BlackBox via `USE_VERILOG_PSP`.
 
+## Quick Start
+- Build and run tests (ChiselTest):
+```bash
+cd ElfCore
+sbt test
+```
+
+- Run standalone async SerDes simulation (Questa/ModelSim): see commands in "Standalone SerDes testbench" below. Use `+DISABLE_SP` or `+DISABLE_PS` to isolate a path.
+
+- Using Verilog PSP in the top: set the elaboration parameter `USE_VERILOG_PSP=true` in `ELFCORE.scala`; for pure Scala simulation keep it `false` to use the functional model.
+
+## Top‑level Parameters and Constraints
+- **Dimensions**: `N_INP`, `N_H1`, `N_H2`, `N_OUT` (default 256/512/512/16).
+- **OUT bus width constraint**: `OUT_DATA` is 8‑bit, therefore `M_OUT = ceil_log2(N_OUT) ≤ 8` (i.e., `N_OUT ≤ 256`).
+- **PSP bandwidth**: `PSP_BW = max(M_INP, M_OUT)`; this is passed into the PSP BlackBox/Model as `BW`.
+- **Ticking**: `LOCAL_TICK_EN`, `CYCLES_PER_TICK` control internal tick generation; otherwise `TIME_TICK` is external.
+- **AER P→S usage**: `USE_OUT_BUS_AS_AER=true` serializes the lower `M_OUT` bits of the 8‑bit `OUT_DATA` into the PSP payload.
+- **StoP stop‑delay**: `STOP_DELAY_CYCLES ∈ [0,3]` selects an optional edge delay slot before enqueueing into the StoP→core FIFO.
+
+## I/O at a Glance (Top: `ELFCORE.scala`)
+- **SPI**: `SCK`, `MOSI`, `MISO`; `SPI_RDY` indicates configuration mode.
+- **Timestep**: inputs `SAMPLE`, `TIME_TICK`, `INFER_ACC`; `TIMING_ERROR_RDY` reflects readiness policy.
+- **AER serial in (StoP)**: `AER_SER_IN_REQ/ACK/DATA` (two‑phase toggle handshake via PSP).
+- **AER serial out (PtoS)**: `AER_SER_OUT_REQ/ACK/DATA` (two‑phase toggle handshake via PSP).
+- **Labels**: `LABEL_VALID`, `LABEL_INDEX[M_OUT-1:0]`.
+
 ## Async SerDes (PSP)
 - Consists of `PtoS` (parallel→serial) and `StoP` (serial→parallel) with two‑phase handshakes:
   - `PtoS`: `ReqIn/AckIn` on the parallel side, `ReqOut/AckOut` on the serial side, `DataIn[36:0] → DataOut`.
@@ -90,6 +116,12 @@ vsim -c work.PSP_tb +DISABLE_SP +IN_PS=../stim/ps_in.txt +OUT_PS=../out/ps_out.t
 - Driving both PS and SP paths without disabling one can cause overlapping resets or shared control in a single TB; use `+DISABLE_PS`/`+DISABLE_SP` to isolate paths when debugging.
 - Mismatched bit order when comparing against golden files; validate with one‑hot patterns and adjust comparison.
 - Forgotten file closure or no finish condition; the TB now closes files, drains, and finishes automatically, with optional `+TIMEOUT`.
+
+### Core/top integration pitfalls and portability
+- Ensure `N_OUT ≤ 256` so `M_OUT ≤ 8`; only the lower 8 bits are emitted on `OUT_DATA`/serialized over PSP.
+- Keep `STOP_DELAY_CYCLES` within `[0,3]`; the internal delay line is 4 deep.
+- PSP BlackBox paths in `ELFCORE.scala` use explicit `addPath(...)`. For portability, prefer project‑relative paths or resource packaging when integrating into other build systems.
+- Remember `BW` is parameterized by `PSP_BW=max(M_INP, M_OUT)` from the Chisel top; align SerDes expectations accordingly when using the standalone PSP TB.
 
 ## Architecture and Working Flow (detailed)
 - Global FSM (one tick per phase transition unless pipelined):
@@ -224,3 +256,4 @@ sbt test
 - SRAM wrappers implement 2-cycle read-modify-write to honor bit-level masks for sub-byte fields.
 - Add CDC timing exceptions for PSP domains (StoP/PtoS) in STA; resets/delays are explicitly wired in the top.
  - Testbench now uses a deterministic RNG seed for reproducibility.
+ - When packaging for other environments, replace absolute `addPath` entries with relative paths or use `addResource`/resource jars to locate Verilog files.

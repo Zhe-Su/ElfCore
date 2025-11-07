@@ -46,7 +46,7 @@ class PSPModel(val BW: Int) extends Module {
   // Defaults
   io.AckIn_PS   := io.AckOut_PS
   io.ReqOut_PS  := io.ReqIn_PS
-  io.DataOut_PS := io.DataIn_PS(0)
+  io.DataOut_PS := io.DataIn_PS(0).asBool
 
   io.AckIn_SP   := io.AckOut_SP
   io.ReqOut_SP  := io.ReqIn_SP
@@ -106,6 +106,10 @@ class ELFCOREChisel(
   private val M_INP = Math.max(1, log2Ceil(N_INP))
   private val M_OUT = Math.max(1, log2Ceil(N_OUT))
   private val PSP_BW = Math.max(M_INP, M_OUT)
+
+  // Parameter guards
+  require(STOP_DELAY_CYCLES >= 0 && STOP_DELAY_CYCLES <= 3, "STOP_DELAY_CYCLES must be within [0, 3]")
+  require(M_OUT <= 8, s"N_OUT=$N_OUT exceeds 256; OUT_DATA is 8-bit so M_OUT must be <= 8")
 
   val io = IO(new Bundle {
     // Global
@@ -278,12 +282,9 @@ class ELFCOREChisel(
     sff_OUT_ACK := false.B
 
     when (USE_OUT_BUS_AS_AER.B && sff_OUT_REQ && !ptos_pending) {
-      val nextPS = WireDefault(0.U(PSP_BW.W))
       val lo = M_OUT min 8
-      nextPS := 0.U
       // Place OUT_DATA's lower M_OUT bits into PS payload LSBs
-      nextPS := Cat(0.U((PSP_BW - lo).W), sff_OUT_DATA(lo-1, 0))
-      psp_DataIn_PS := nextPS
+      psp_DataIn_PS := Cat(0.U((PSP_BW - lo).W), sff_OUT_DATA(lo-1, 0))
       psp_ReqIn_PS_tgl := ~psp_ReqIn_PS_tgl
       ptos_pending := true.B
     }
