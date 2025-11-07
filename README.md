@@ -1,5 +1,18 @@
 # ELFCORE - Architecture, SPI Map, and Testbench Flow
 
+## Overview
+ElfCore is a 28‑nm digital spiking neural network processor tailored for event‑driven sensory signal processing. It is the first to efficiently integrate:
+
+1) a local, online self‑supervised learning engine that enables multilayer temporal learning without labeled inputs;
+
+2) a dynamic structured sparse training engine that supports high‑accuracy sparse‑to‑sparse learning; and
+
+3) an activity‑dependent sparse weight‑update mechanism that selectively updates weights based solely on input activity and network dynamics.
+
+Demonstrated on tasks including gesture recognition, speech, and biomedical signal processing, ElfCore outperforms state‑of‑the‑art solutions with up to 16× lower power, 3.8× reduced on‑chip memory requirements, and 5.9× greater network‑capacity efficiency.
+
+ElfCore was prototyped and measured in 28‑nm FDSOI CMOS at the Institute of Neuroinformatics, University of Zurich and ETH Zurich, and published at the 2025 IEEE European Solid‑State Electronics Research Conference (ESSERC).
+
 ## Layout
 - `ELFCORE_core.scala`, `ELFCORE.scala`: Chisel sources (core and top with PSP BlackBox).
 - `ELFCORE_tb.scala`: ChiselTest harness (dataset-style training and inference).
@@ -257,3 +270,11 @@ sbt test
 - Add CDC timing exceptions for PSP domains (StoP/PtoS) in STA; resets/delays are explicitly wired in the top.
  - Testbench now uses a deterministic RNG seed for reproducibility.
  - When packaging for other environments, replace absolute `addPath` entries with relative paths or use `addResource`/resource jars to locate Verilog files.
+
+## Usage and feedback
+If you decide to use the ElfCore source code for academic or commercial purposes, we would appreciate hearing from you; feedback is welcome. The repository will continue to be updated to improve readability and reproducibility—thanks for your patience.
+
+## Citation
+If you use ElfCore in academic work or products, please cite the associated paper:
+
+Z. Su and G. Indiveri, "ElfCore: A 28nm Neural Processor Enabling Dynamic Structured Sparse Training and Online Self‑Supervised Learning with Activity‑Dependent Weight Update," 2025 IEEE European Solid‑State Electronics Research Conference (ESSERC), Munich, Germany, 2025, pp. 13–16. [DOI](https://doi.org/10.1109/ESSERC66193.2025.11214101).
