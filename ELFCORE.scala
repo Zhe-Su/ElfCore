@@ -32,11 +32,11 @@ class PSPIO(val BW: Int) extends Bundle {
 class PSPBlackBox(val BW: Int) extends BlackBox(Map("BW" -> IntParam(BW))) with HasBlackBoxPath {
   val io = IO(new PSPIO(BW))
   // Point to real RTL files
-  addPath("/home/zhesu/Open_Source_Digital/ElfCore/async_serdes/specs.v")
-  addPath("/home/zhesu/Open_Source_Digital/ElfCore/async_serdes/PtoS.v")
-  addPath("/home/zhesu/Open_Source_Digital/ElfCore/async_serdes/StoP.v")
-  addPath("/home/zhesu/Open_Source_Digital/ElfCore/async_serdes/PSP_submodels.v")
-  addPath("/home/zhesu/Open_Source_Digital/ElfCore/async_serdes/PSP.v")
+  addPath("async_serdes/specs.v")
+  addPath("async_serdes/PtoS.v")
+  addPath("async_serdes/StoP.v")
+  addPath("async_serdes/PSP_submodels.v")
+  addPath("async_serdes/PSP.v")
 }
 
 // Simple Scala PSP model for simulation only (functional, single-clock)

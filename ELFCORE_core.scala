@@ -294,7 +294,7 @@ class ELFCORECoreChisel(
         val base = Cat(cfg_kappa.asUInt, cfg_num_out_neur.asUInt, cfg_num_rec_neur.asUInt, cfg_num_inp_neur.asUInt, flags)
         when (addr16(13)) {
           // Extended subpage readback
-          switch (addr16(12,8)) {
+          switch (addr16(14,8)) {
             is (0.U)  { read_data := base }
             is (1.U)  { read_data := Cat(0.U(19.W), cfg_fp_loc_wout, cfg_fp_loc_wrec, cfg_fp_loc_winp, cfg_fp_loc_tout, cfg_fp_loc_trec, cfg_fp_loc_tinp,
                                          cfg_regul_k_mul, cfg_regul_k_rec_p, cfg_regul_k_rec_r, cfg_regul_k_inp_p, cfg_regul_k_inp_r,
@@ -315,8 +315,6 @@ class ELFCORECoreChisel(
             is (13.U) { read_data := Cat(0.U(16.W), cfg_h1_contr_gate) }
             is (14.U) { read_data := Cat(0.U(16.W), cfg_h2_pred_gate) }
             is (15.U) { read_data := Cat(0.U(16.W), cfg_h2_contr_gate) }
-            is (18.U) { read_data := Cat(0.U(16.W), cfg_h1_grad_max) }
-            is (19.U) { read_data := Cat(0.U(16.W), cfg_h2_grad_max) }
             is (16.U) { read_data := Cat(0.U(30.W), cfg_sim_norm_mode) }
             // DST readback remapped to 90..101
             is (90.U) { read_data := Cat(0.U(31.W), cfg_dyn_en_h1) }
@@ -371,6 +369,24 @@ class ELFCORECoreChisel(
             is (65.U) { read_data := Cat(0.U(24.W), cfg_out_bias8_vec(13).asUInt) }
             is (66.U) { read_data := Cat(0.U(24.W), cfg_out_bias8_vec(14).asUInt) }
             is (67.U) { read_data := Cat(0.U(24.W), cfg_out_bias8_vec(15).asUInt) }
+            // Remapped readbacks (output-learning, regularization, FP-locations, thr_i)
+            is (108.U) { read_data := Cat(0.U(31.W), cfg_out_learn_use_act) }
+            is (109.U) { read_data := Cat(0.U(31.W), cfg_out_stoch_en) }
+            is (112.U) { read_data := Cat(0.U(29.W), cfg_regul_mode) }
+            is (113.U) { read_data := Cat(0.U(30.W), cfg_regul_w) }
+            is (114.U) { read_data := Cat(0.U(20.W), cfg_regul_f0) }
+            is (115.U) { read_data := Cat(0.U(27.W), cfg_regul_k_inp_r) }
+            is (116.U) { read_data := Cat(0.U(27.W), cfg_regul_k_inp_p) }
+            is (117.U) { read_data := Cat(0.U(27.W), cfg_regul_k_rec_r) }
+            is (118.U) { read_data := Cat(0.U(27.W), cfg_regul_k_rec_p) }
+            is (119.U) { read_data := Cat(0.U(27.W), cfg_regul_k_mul) }
+            is (120.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_tinp) }
+            is (121.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_trec) }
+            is (122.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_tout) }
+            is (123.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_winp) }
+            is (124.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_wrec) }
+            is (125.U) { read_data := Cat(0.U(29.W), cfg_fp_loc_wout) }
+            is (127.U) { read_data := Cat(0.U(16.W), cfg_thr_i) }
           }
         } .otherwise {
           read_data := base
@@ -395,7 +411,7 @@ class ELFCORECoreChisel(
             // Derived diagnostics
             val h1_heap_count = dst1_heap_mags.map(m => (m =/= 255.U).asUInt).reduce(_+&_)
             val h2_heap_count = dst2_heap_mags.map(m => (m =/= 255.U).asUInt).reduce(_+&_)
-            switch (addr16(12,8)) {
+            switch (addr16(14,8)) {
               is (0.U) { read_data := cnt_ticks } // 32-bit
               is (1.U) { read_data := Cat(0.U(16.W), cnt_spikes_h1) }
               is (2.U) { read_data := Cat(0.U(16.W), cnt_spikes_h2) }
@@ -451,38 +467,38 @@ class ELFCORECoreChisel(
               is (73.U){ read_data := Cat(0.U(16.W), err_snapshot(13)) }
               is (74.U){ read_data := Cat(0.U(16.W), err_snapshot(14)) }
               is (75.U){ read_data := Cat(0.U(16.W), err_snapshot(15)) }
-              is (19.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(0),  dst1_heap_mags(0)) }
-              is (20.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(1),  dst1_heap_mags(1)) }
-              is (21.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(2),  dst1_heap_mags(2)) }
-              is (22.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(3),  dst1_heap_mags(3)) }
-              is (23.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(4),  dst1_heap_mags(4)) }
-              is (24.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(5),  dst1_heap_mags(5)) }
-              is (25.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(6),  dst1_heap_mags(6)) }
-              is (26.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(7),  dst1_heap_mags(7)) }
-              is (27.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(8),  dst1_heap_mags(8)) }
-              is (28.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(9),  dst1_heap_mags(9)) }
-              is (29.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(10), dst1_heap_mags(10)) }
-              is (30.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(11), dst1_heap_mags(11)) }
-              is (31.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(12), dst1_heap_mags(12)) }
-              is (32.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(13), dst1_heap_mags(13)) }
-              is (33.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(14), dst1_heap_mags(14)) }
-              is (34.U){ read_data := Cat(0.U(20.W), dst1_heap_addrs(15), dst1_heap_mags(15)) }
-              is (35.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(0),  dst2_heap_mags(0)) }
-              is (36.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(1),  dst2_heap_mags(1)) }
-              is (37.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(2),  dst2_heap_mags(2)) }
-              is (38.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(3),  dst2_heap_mags(3)) }
-              is (39.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(4),  dst2_heap_mags(4)) }
-              is (40.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(5),  dst2_heap_mags(5)) }
-              is (41.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(6),  dst2_heap_mags(6)) }
-              is (42.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(7),  dst2_heap_mags(7)) }
-              is (43.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(8),  dst2_heap_mags(8)) }
-              is (44.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(9),  dst2_heap_mags(9)) }
-              is (45.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(10), dst2_heap_mags(10)) }
-              is (46.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(11), dst2_heap_mags(11)) }
-              is (47.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(12), dst2_heap_mags(12)) }
-              is (48.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(13), dst2_heap_mags(13)) }
-              is (49.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(14), dst2_heap_mags(14)) }
-              is (50.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(15), dst2_heap_mags(15)) }
+              is (76.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(0),  dst1_heap_mags(0)) }
+              is (77.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(1),  dst1_heap_mags(1)) }
+              is (78.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(2),  dst1_heap_mags(2)) }
+              is (79.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(3),  dst1_heap_mags(3)) }
+              is (80.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(4),  dst1_heap_mags(4)) }
+              is (81.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(5),  dst1_heap_mags(5)) }
+              is (82.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(6),  dst1_heap_mags(6)) }
+              is (83.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(7),  dst1_heap_mags(7)) }
+              is (84.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(8),  dst1_heap_mags(8)) }
+              is (85.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(9),  dst1_heap_mags(9)) }
+              is (86.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(10), dst1_heap_mags(10)) }
+              is (87.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(11), dst1_heap_mags(11)) }
+              is (88.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(12), dst1_heap_mags(12)) }
+              is (89.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(13), dst1_heap_mags(13)) }
+              is (90.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(14), dst1_heap_mags(14)) }
+              is (91.U) { read_data := Cat(0.U(20.W), dst1_heap_addrs(15), dst1_heap_mags(15)) }
+              is (92.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(0),  dst2_heap_mags(0)) }
+              is (93.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(1),  dst2_heap_mags(1)) }
+              is (94.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(2),  dst2_heap_mags(2)) }
+              is (95.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(3),  dst2_heap_mags(3)) }
+              is (96.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(4),  dst2_heap_mags(4)) }
+              is (97.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(5),  dst2_heap_mags(5)) }
+              is (98.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(6),  dst2_heap_mags(6)) }
+              is (99.U) { read_data := Cat(0.U(20.W), dst2_heap_addrs(7),  dst2_heap_mags(7)) }
+              is (100.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(8),  dst2_heap_mags(8)) }
+              is (101.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(9),  dst2_heap_mags(9)) }
+              is (102.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(10), dst2_heap_mags(10)) }
+              is (103.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(11), dst2_heap_mags(11)) }
+              is (104.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(12), dst2_heap_mags(12)) }
+              is (105.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(13), dst2_heap_mags(13)) }
+              is (106.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(14), dst2_heap_mags(14)) }
+              is (107.U){ read_data := Cat(0.U(20.W), dst2_heap_addrs(15), dst2_heap_mags(15)) }
             }
           }.otherwise {
             val selCnt = addr16(4) // 0=trace, 1=count
@@ -589,107 +605,114 @@ class ELFCORECoreChisel(
         cfg_kappa            := data_word(31,24)
         // Extended cfg subpage via addr16(13)
         when (addr16(13)) {
-          switch (addr16(12,8)) {
-            is (0.U) { cfg_do_eprop := data_word(2,0) }
-            is (1.U) { lr_r_winp := data_word(4,0); lr_p_winp := data_word(9,5) }
-            is (2.U) { lr_r_wrec := data_word(4,0); lr_p_wrec := data_word(9,5) }
-            is (3.U) { lr_r_wout := data_word(4,0); lr_p_wout := data_word(9,5) }
-            is (4.U) { cfg_words_per_pre_h1 := data_word(3,0) }
-            is (5.U) { cfg_words_per_pre_h2 := data_word(3,0) }
-            is (6.U) { ste_lut(data_word(15,8)) := data_word(7,0) }
-            is (7.U) { cfg_stream_act := data_word(0) }
-            is (8.U) { cfg_out_err_scale := data_word(3,0) }
-            is (9.U) { cfg_out_err_max   := data_word(15,0) }
-            is (10.U){ cfg_out_pre_scale := data_word(7,0) }
-            is (11.U){ cfg_out_wdec      := data_word(7,0) }
-            // Global input activity gate threshold
-            is (55.U){ cfg_thr_i         := data_word(15,0) }
-            is (12.U){ cfg_out_ste_en    := data_word(0) }
-            is (39.U){ cfg_use_oneur     := data_word(0) }
-            is (40.U){ cfg_sv_act_map    := data_word(0) }
-            is (16.U){ cfg_out_learn_use_act := data_word(0) }
-            is (17.U){ cfg_out_stoch_en      := data_word(0) }
-            is (18.U){ cfg_h1_grad_max       := data_word(15,0) }
-            is (19.U){ cfg_h2_grad_max       := data_word(15,0) }
-            // REGUL subset
-            is (41.U){ cfg_regul_mode := data_word(2,0) }
-            is (42.U){ cfg_regul_w    := data_word(1,0) }
-            is (43.U){ cfg_regul_f0   := data_word(11,0) }
-            is (44.U){ cfg_regul_k_inp_r := data_word(4,0) }
-            is (45.U){ cfg_regul_k_inp_p := data_word(4,0) }
-            is (46.U){ cfg_regul_k_rec_r := data_word(4,0) }
-            is (47.U){ cfg_regul_k_rec_p := data_word(4,0) }
-            is (48.U){ cfg_regul_k_mul   := data_word(4,0) }
-            // FP locations
-            is (49.U){ cfg_fp_loc_tinp := data_word(2,0) }
-            is (50.U){ cfg_fp_loc_trec := data_word(2,0) }
-            is (51.U){ cfg_fp_loc_tout := data_word(2,0) }
-            is (52.U){ cfg_fp_loc_winp := data_word(2,0) }
-            is (53.U){ cfg_fp_loc_wrec := data_word(2,0) }
-            is (54.U){ cfg_fp_loc_wout := data_word(2,0) }
-            is (30.U){ cfg_pipelined     := data_word(0) }
-            // Stage mode configuration (remapped to 104)
+          switch (addr16(14,8)) {
+            // E-prop and learning rate knobs (0..12)
+            is (0.U)  { cfg_do_eprop := data_word(2,0) }
+            is (1.U)  { lr_r_winp := data_word(4,0); lr_p_winp := data_word(9,5) }
+            is (2.U)  { lr_r_wrec := data_word(4,0); lr_p_wrec := data_word(9,5) }
+            is (3.U)  { lr_r_wout := data_word(4,0); lr_p_wout := data_word(9,5) }
+            is (4.U)  { cfg_words_per_pre_h1 := data_word(3,0) }
+            is (5.U)  { cfg_words_per_pre_h2 := data_word(3,0) }
+            is (6.U)  { ste_lut(data_word(15,8)) := data_word(7,0) }
+            is (7.U)  { cfg_stream_act := data_word(0) }
+            is (8.U)  { cfg_out_err_scale := data_word(3,0) }
+            is (9.U)  { cfg_out_err_max   := data_word(15,0) }
+            is (10.U) { cfg_out_pre_scale := data_word(7,0) }
+            is (11.U) { cfg_out_wdec      := data_word(7,0) }
+            is (12.U) { cfg_out_ste_en    := data_word(0) }
+            // Similarity, input gating, normalization (13..21)
+            is (13.U) { cfg_sim_scale     := data_word(15,0) }
+            is (14.U) { cfg_sim_shift     := data_word(4,0) }
+            is (15.U) { cfg_i_scale       := data_word(15,0) }
+            is (16.U) { cfg_i_shift       := data_word(4,0) }
+            is (17.U) { cfg_h1_pred_gate  := data_word(15,0) }
+            is (18.U) { cfg_h1_contr_gate := data_word(15,0) }
+            is (19.U) { cfg_h2_pred_gate  := data_word(15,0) }
+            is (20.U) { cfg_h2_contr_gate := data_word(15,0) }
+            is (21.U) { cfg_sim_norm_mode := data_word(1,0) }
+            // Core control knobs (30..40)
+            is (30.U) { cfg_pipelined     := data_word(0) }
+            is (31.U) { cfg_vi_base       := data_word(M_INP-1,0) }
+            is (32.U) { cfg_tprev_depth   := data_word(2,0) }
+            is (33.U) { cfg_out_bias8     := data_word(7,0).asSInt }
+            is (34.U) { cfg_sup_out_en    := data_word(0) }
+            is (35.U) { cfg_clip_wout     := data_word(7,0) }
+            is (36.U) { cfg_clip_hidden   := data_word(7,0) }
+            is (37.U) { cfg_dst_scan_h1   := data_word(11,0) }
+            is (38.U) { cfg_dst_scan_h2   := data_word(11,0) }
+            is (39.U) { cfg_use_oneur     := data_word(0) }
+            is (40.U) { cfg_sv_act_map    := data_word(0) }
+            // Timing and noise (41..43)
+            is (41.U) { cfg_cycles_per_tick := data_word }
+            is (42.U) { cfg_local_tick := data_word(0); cfg_error_halt := data_word(1) }
+            is (43.U) { cfg_noise_str := data_word(3,0) }
+            // SRAM speed knobs (44..51)
+            is (44.U) { cfg_sram_speed_h1(0) := data_word(7,0) }
+            is (45.U) { cfg_sram_speed_h1(1) := data_word(7,0) }
+            is (46.U) { cfg_sram_speed_h1(2) := data_word(7,0) }
+            is (47.U) { cfg_sram_speed_h1(3) := data_word(7,0) }
+            is (48.U) { cfg_sram_speed_h2(0) := data_word(7,0) }
+            is (49.U) { cfg_sram_speed_h2(1) := data_word(7,0) }
+            is (50.U) { cfg_sram_speed_h2(2) := data_word(7,0) }
+            is (51.U) { cfg_sram_speed_h2(3) := data_word(7,0) }
+            // Per-output bias writes (52..67)
+            is (52.U) { cfg_out_bias8_vec(0)  := data_word(7,0).asSInt }
+            is (53.U) { cfg_out_bias8_vec(1)  := data_word(7,0).asSInt }
+            is (54.U) { cfg_out_bias8_vec(2)  := data_word(7,0).asSInt }
+            is (55.U) { cfg_out_bias8_vec(3)  := data_word(7,0).asSInt }
+            is (56.U) { cfg_out_bias8_vec(4)  := data_word(7,0).asSInt }
+            is (57.U) { cfg_out_bias8_vec(5)  := data_word(7,0).asSInt }
+            is (58.U) { cfg_out_bias8_vec(6)  := data_word(7,0).asSInt }
+            is (59.U) { cfg_out_bias8_vec(7)  := data_word(7,0).asSInt }
+            is (60.U) { cfg_out_bias8_vec(8)  := data_word(7,0).asSInt }
+            is (61.U) { cfg_out_bias8_vec(9)  := data_word(7,0).asSInt }
+            is (62.U) { cfg_out_bias8_vec(10) := data_word(7,0).asSInt }
+            is (63.U) { cfg_out_bias8_vec(11) := data_word(7,0).asSInt }
+            is (64.U) { cfg_out_bias8_vec(12) := data_word(7,0).asSInt }
+            is (65.U) { cfg_out_bias8_vec(13) := data_word(7,0).asSInt }
+            is (66.U) { cfg_out_bias8_vec(14) := data_word(7,0).asSInt }
+            is (67.U) { cfg_out_bias8_vec(15) := data_word(7,0).asSInt }
+            // Refractory/homeostasis (68..71)
+            is (68.U) { cfg_ref_add_h1 := data_word(7,0) }
+            is (69.U) { cfg_ref_dec_h1 := data_word(7,0) }
+            is (70.U) { cfg_ref_add_h2 := data_word(7,0) }
+            is (71.U) { cfg_ref_dec_h2 := data_word(7,0) }
+            // DST (90..99)
+            is (90.U) { cfg_dyn_en_h1    := data_word(0) }
+            is (91.U) { cfg_dyn_en_h2    := data_word(0) }
+            is (92.U) { cfg_dyn_x_h1     := data_word(15,0) }
+            is (93.U) { cfg_dyn_x_h2     := data_word(15,0) }
+            is (94.U) { cfg_prune_k_h1   := data_word(7,0) }
+            is (95.U) { cfg_prune_k_h2   := data_word(7,0) }
+            is (96.U) { cfg_collision_en := data_word(0) }
+            is (97.U) { cfg_seed_dst     := data_word(16,0) }
+            is (98.U) { cfg_seed_noise   := data_word(16,0) }
+            is (99.U) { cfg_seed_strnd   := data_word(14,0) }
+            // Stage mode (104)
             is (104.U){ cfg_stage_mode    := data_word(1,0) }
-            is (34.U){ cfg_sup_out_en    := data_word(0) }
-            is (31.U){ cfg_vi_base       := data_word(M_INP-1,0) }
-            is (32.U){ cfg_tprev_depth   := data_word(2,0) }
-            is (33.U){ cfg_out_bias8     := data_word(7,0).asSInt }
-            is (35.U){ cfg_clip_wout     := data_word(7,0) }
-            is (36.U){ cfg_clip_hidden   := data_word(7,0) }
-            is (37.U){ cfg_dst_scan_h1   := data_word(11,0) }
-            is (38.U){ cfg_dst_scan_h2   := data_word(11,0) }
-            // Per-output bias writes 52..67 map to out[0..15]
-            is (52.U){ cfg_out_bias8_vec(0)  := data_word(7,0).asSInt }
-            is (53.U){ cfg_out_bias8_vec(1)  := data_word(7,0).asSInt }
-            is (54.U){ cfg_out_bias8_vec(2)  := data_word(7,0).asSInt }
-            is (55.U){ cfg_out_bias8_vec(3)  := data_word(7,0).asSInt }
-            is (56.U){ cfg_out_bias8_vec(4)  := data_word(7,0).asSInt }
-            is (57.U){ cfg_out_bias8_vec(5)  := data_word(7,0).asSInt }
-            is (58.U){ cfg_out_bias8_vec(6)  := data_word(7,0).asSInt }
-            is (59.U){ cfg_out_bias8_vec(7)  := data_word(7,0).asSInt }
-            is (60.U){ cfg_out_bias8_vec(8)  := data_word(7,0).asSInt }
-            is (61.U){ cfg_out_bias8_vec(9)  := data_word(7,0).asSInt }
-            is (62.U){ cfg_out_bias8_vec(10) := data_word(7,0).asSInt }
-            is (63.U){ cfg_out_bias8_vec(11) := data_word(7,0).asSInt }
-            is (64.U){ cfg_out_bias8_vec(12) := data_word(7,0).asSInt }
-            is (65.U){ cfg_out_bias8_vec(13) := data_word(7,0).asSInt }
-            is (66.U){ cfg_out_bias8_vec(14) := data_word(7,0).asSInt }
-            is (67.U){ cfg_out_bias8_vec(15) := data_word(7,0).asSInt }
-            is (13.U){ cfg_sim_scale     := data_word(15,0) }
-            is (14.U){ cfg_sim_shift     := data_word(4,0) }
-            is (15.U){ cfg_i_scale       := data_word(15,0) }
-            is (16.U){ cfg_i_shift       := data_word(4,0) }
-            is (17.U){ cfg_h1_pred_gate  := data_word(15,0) }
-            is (18.U){ cfg_h1_contr_gate := data_word(15,0) }
-            is (19.U){ cfg_h2_pred_gate  := data_word(15,0) }
-            is (20.U){ cfg_h2_contr_gate := data_word(15,0) }
-            is (21.U){ cfg_sim_norm_mode := data_word(1,0) }
-            // DST writes remapped to 90..101
-            is (90.U){ cfg_dyn_en_h1    := data_word(0) }
-            is (91.U){ cfg_dyn_en_h2    := data_word(0) }
-            is (92.U){ cfg_dyn_x_h1     := data_word(15,0) }
-            is (93.U){ cfg_dyn_x_h2     := data_word(15,0) }
-            is (94.U){ cfg_prune_k_h1   := data_word(7,0) }
-            is (95.U){ cfg_prune_k_h2   := data_word(7,0) }
-            is (96.U){ cfg_collision_en := data_word(0) }
-            is (97.U){ cfg_seed_dst     := data_word(16,0) }
-            is (98.U){ cfg_seed_noise   := data_word(16,0) }
-            is (99.U){ cfg_seed_strnd   := data_word(14,0) }
-            is (41.U){ cfg_cycles_per_tick := data_word }
-            is (42.U){ cfg_local_tick := data_word(0); cfg_error_halt := data_word(1) }
-            is (43.U){ cfg_noise_str := data_word(3,0) }
-            is (44.U){ cfg_sram_speed_h1(0) := data_word(7,0) }
-            is (45.U){ cfg_sram_speed_h1(1) := data_word(7,0) }
-            is (46.U){ cfg_sram_speed_h1(2) := data_word(7,0) }
-            is (47.U){ cfg_sram_speed_h1(3) := data_word(7,0) }
-            is (48.U){ cfg_sram_speed_h2(0) := data_word(7,0) }
-            is (49.U){ cfg_sram_speed_h2(1) := data_word(7,0) }
-            is (50.U){ cfg_sram_speed_h2(2) := data_word(7,0) }
-            is (51.U){ cfg_sram_speed_h2(3) := data_word(7,0) }
-            is (68.U){ cfg_ref_add_h1 := data_word(7,0) }
-            is (69.U){ cfg_ref_dec_h1 := data_word(7,0) }
-            is (70.U){ cfg_ref_add_h2 := data_word(7,0) }
-            is (71.U){ cfg_ref_dec_h2 := data_word(7,0) }
+            // Output learning knobs (remapped: 108..111)
+            is (108.U){ cfg_out_learn_use_act := data_word(0) }
+            is (109.U){ cfg_out_stoch_en      := data_word(0) }
+            is (110.U){ cfg_h1_grad_max       := data_word(15,0) }
+            is (111.U){ cfg_h2_grad_max       := data_word(15,0) }
+            // Regularization (remapped: 112..119)
+            is (112.U){ cfg_regul_mode := data_word(2,0) }
+            is (113.U){ cfg_regul_w    := data_word(1,0) }
+            is (114.U){ cfg_regul_f0   := data_word(11,0) }
+            is (115.U){ cfg_regul_k_inp_r := data_word(4,0) }
+            is (116.U){ cfg_regul_k_inp_p := data_word(4,0) }
+            is (117.U){ cfg_regul_k_rec_r := data_word(4,0) }
+            is (118.U){ cfg_regul_k_rec_p := data_word(4,0) }
+            is (119.U){ cfg_regul_k_mul   := data_word(4,0) }
+            // Fixed-point locations (remapped: 120..125)
+            is (120.U){ cfg_fp_loc_tinp := data_word(2,0) }
+            is (121.U){ cfg_fp_loc_trec := data_word(2,0) }
+            is (122.U){ cfg_fp_loc_tout := data_word(2,0) }
+            is (123.U){ cfg_fp_loc_winp := data_word(2,0) }
+            is (124.U){ cfg_fp_loc_wrec := data_word(2,0) }
+            is (125.U){ cfg_fp_loc_wout := data_word(2,0) }
+            // Global input activity gate threshold (remapped: 127)
+            is (127.U){ cfg_thr_i         := data_word(15,0) }
           }
         }
         spi_burst_active     := false.B
@@ -1010,7 +1033,7 @@ class ELFCORECoreChisel(
   i_div := MuxLookup(cfg_sim_norm_mode, i_raw, Seq(
     0.U -> i_raw, // none
     1.U -> i_raw, // already normalized by aer_cnt_tick semantics
-    2.U -> Mux(neuron_count === 0.U, i_raw, i_div_lut)
+    2.U -> Mux(neuron_count9 === 0.U, i_raw, i_div_lut)
   ))
   val i_norm = ((i_div * cfg_i_scale) >> cfg_i_shift)(31,0)
   val i_gate = i_norm >= cfg_thr_i
@@ -1683,7 +1706,7 @@ class ELFCORECoreChisel(
   val bursts_idle = !((state === State.PROP1 && vi_sp_active) || (state === State.PROP2 && h2_sp_active))
   // STEP2 done flag: set when finishing last writeback in STEP2, clear on new tick start in PROP1
   val step2_done_flag = RegInit(true.B)
-  when (rst) { step2_done_flag := true.B }
+  when (reset.asBool) { step2_done_flag := true.B }
   .elsewhen (state === State.STEP2 && h2_step_rw && (h2_step_idx === (127).U)) { step2_done_flag := true.B }
   .elsewhen (io.TIME_TICK && (state === State.PROP1)) { step2_done_flag := false.B }
   // Burst window accounting: SV uses 4 bursts per tick by default
@@ -1962,6 +1985,11 @@ class ELFCORECoreChisel(
   def spSynW8(q: UInt, slot: Int): UInt  = { require(slot >=0 && slot < 8); q(17*slot+7,  17*slot) }
   def spIdxVec(q: UInt): Vec[UInt] = { VecInit((0 until 8).map(s => q(17*s+16, 17*s+8))) }
   def spW8Vec(q: UInt): Vec[UInt]  = { VecInit((0 until 8).map(s => q(17*s+7,  17*s))) }
+  // DST compact-format bit-field positions (from Cat(0, w, j, group, slot, flag) at prune/regrow)
+  private val SP_W_L = 15; private val SP_W_H = 22
+  private val SP_J_L =  6; private val SP_J_H = 14
+  private val SP_G_L =  4; private val SP_G_H =  5
+  private val DST_HEAP_K_MAX = 16
   class Sparse4096x136 extends Module {
     val io = IO(new Bundle {
       val cs = Input(Bool())
@@ -2021,6 +2049,9 @@ class ELFCORECoreChisel(
   val coll1_state  = RegInit(CState.C_IDLE)
   val coll1_addr   = RegInit(0.U(12.W))
   val coll1_word   = RegInit(0.U(136.W))
+  val coll2_state  = RegInit(CState.C_IDLE)
+  val coll2_addr   = RegInit(0.U(12.W))
+  val coll2_word   = RegInit(0.U(136.W))
   // Top-K heap for smallest |w| (K<=16)
   val dst1_heap_mags  = RegInit(VecInit(Seq.fill(16)(255.U(8.W))))
   val dst1_heap_addrs = RegInit(VecInit(Seq.fill(16)(0.U(12.W))))
@@ -2098,7 +2129,7 @@ class ELFCORECoreChisel(
           when (useHeap) { rg_heap_score1(cur_grp)(bestEnt) := 0.U; rg_heap_index1(cur_grp)(bestEnt) := 0.U }
           val new_w     = dst_lfsr(14,7)
           val new_slot  = dst_lfsr(6,4)
-          val word = Cat(0.U(11.W), new_w, new_j, new_group, new_slot, 1.U(1.W))
+          val word = Cat(0.U(113.W), new_w, new_j, new_group, new_slot, 1.U(1.W))
           coll1_addr := addrSel; coll1_word := word; coll1_state := CState.C_NEW
         }.otherwise {
           when (dst1_heap_wi === 15.U || dst1_k_left === 0.U) {
@@ -2206,7 +2237,7 @@ class ELFCORECoreChisel(
           when (useHeap) { rg_heap_score2(cur_grp)(bestEnt) := 0.U; rg_heap_index2(cur_grp)(bestEnt) := 0.U }
           val new_w     = dst_lfsr(14,7)
           val new_slot  = dst_lfsr(6,4)
-          val word = Cat(0.U(11.W), new_w, new_j, new_group, new_slot, 1.U(1.W))
+          val word = Cat(0.U(113.W), new_w, new_j, new_group, new_slot, 1.U(1.W))
           coll2_addr := addrSel; coll2_word := word; coll2_state := CState.C_NEW
         }.otherwise {
           when (dst2_heap_wi === 15.U || dst2_k_left === 0.U) {
@@ -2428,6 +2459,8 @@ when (do_contr1){ sim_contr_h1:= satAdd32(sim_contr_h1, p_con) }
   val h2_prev_wptr  = RegInit(VecInit(Seq.fill(4)(0.U(2.W))))
   val h2_prev_wptr_snap = RegInit(VecInit(Seq.fill(4)(0.U(2.W))))
   val h2_prev_snap = RegInit(false.B)
+  val h2_step_idx = RegInit(0.U(7.W))
+  val h2_step_rw  = RegInit(false.B)
   val h2_active   = RegInit(false.B)
   val h2_rw       = RegInit(false.B) // 0=READ, 1=WRITE
   val h2_bank_sel = RegInit(0.U(2.W))

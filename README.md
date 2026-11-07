@@ -212,13 +212,20 @@ Config code: `0000b`. Extended subpages enabled by `addr16[13]=1`. Readbacks via
   - Subpages 17/18 (w/r): `cfg_h1_pred_gate`/`cfg_h1_contr_gate`
   - Subpages 19/20 (w/r): `cfg_h2_pred_gate`/`cfg_h2_contr_gate`
   - Subpage 21 (w/r): `cfg_sim_norm_mode`
-  - Subpage 55 (w): `cfg_thr_i` (global input activity gate)
+  - Subpage 127 (w/r): `cfg_thr_i` (global input activity gate)
 
 - Hidden gradient clamps:
-  - Subpages 18/19 (w/r): `cfg_h1_grad_max`/`cfg_h2_grad_max`
+  - Subpages 110/111 (w/r): `cfg_h1_grad_max`/`cfg_h2_grad_max`
+
+- Output learning knobs:
+  - Subpage 108 (w/r): `cfg_out_learn_use_act`
+  - Subpage 109 (w/r): `cfg_out_stoch_en`
 
 - Fixed-point locations (read/write):
-  - Subpages 49..54: `cfg_fp_loc_tinp/trec/tout`, `cfg_fp_loc_winp/wrec/wout`
+  - Subpages 120..125: `cfg_fp_loc_tinp/trec/tout`, `cfg_fp_loc_winp/wrec/wout`
+
+- Regularization (read/write):
+  - Subpages 112..119: `cfg_regul_mode/w/f0`, `cfg_regul_k_inp_r/p`, `cfg_regul_k_rec_r/p`, `cfg_regul_k_mul`
 
 - Timing and seeds:
   - Subpage 41 (w/r): `cfg_cycles_per_tick`
@@ -242,6 +249,9 @@ Diagnostics (code `1111b`):
   - Subpages 7..10: latched similarities
   - Subpages 11/12: H1/H2 spike counts per tick
   - Subpages 15/16: prune counters H1/H2
+  - Subpages 19..30: regrow-heap entries (H1 groups 0..3, H2 groups 0..3)
+  - Subpages 76..91: DST prune-heap H1 entries 0..15 (`{addr, mag}`)
+  - Subpages 92..107: DST prune-heap H2 entries 0..15 (`{addr, mag}`)
   - bit 14 of addr16 selects winner readback: `{idx, value}`
 
 ## Testbench Working Flow (`ELFCORE_tb.scala`)
@@ -257,7 +267,7 @@ Diagnostics (code `1111b`):
 - SEND handshakes occur in supervised stage and during inference.
 
 ### Helper formulas used in the bench
-- `subpageAddr(N) = (1<<13) | ((N & 0x1F) << 8)` for 0..31 window pages; higher pages use same pattern (bench emits proper headers).
+- `subpageAddr(N) = (1<<13) | ((N & 0x7F) << 8)` for subpages 0..127; extended subpages use `addr16[14:8]` (7 bits).
 
 ## Run ChiselTest
 ```bash
@@ -270,7 +280,7 @@ sbt test
 - SRAM wrappers implement 2-cycle read-modify-write to honor bit-level masks for sub-byte fields.
 - Add CDC timing exceptions for PSP domains (StoP/PtoS) in STA; resets/delays are explicitly wired in the top.
  - Testbench now uses a deterministic RNG seed for reproducibility.
- - When packaging for other environments, replace absolute `addPath` entries with relative paths or use `addResource`/resource jars to locate Verilog files.
+ - PSP BlackBox paths in `ELFCORE.scala` use project-relative `addPath(...)`. For portability with other build systems, prefer `addResource`/resource jars.
 
 ## Usage and feedback
 If you decide to use the ElfCore source code for academic or commercial purposes, we would appreciate hearing from you; feedback is welcome. The repository will continue to be updated to improve readability and reproducibility—thanks for your patience.

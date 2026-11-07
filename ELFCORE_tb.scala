@@ -32,7 +32,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
           dut.io.SCK.poke(false.B); step(1)
         }
       }
-      def subpageAddr(sp: Int): Int = ((1 << 13) | ((sp & 0x1F) << 8))
+      def subpageAddr(sp: Int): Int = ((1 << 13) | ((sp & 0x7F) << 8))
       def readCfgSubpage(sp: Int): Int = spiReadWord(spiHdrCfgRead(subpageAddr(sp))).toInt
 
       // Parameter initialization stage: program core knobs via SPI subpages
@@ -52,7 +52,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
         spiSendWord(spiHdrCfgWrite(subpageAddr(19))); spiSendWord(0)  // h2_pred_gate
         spiSendWord(spiHdrCfgWrite(subpageAddr(20))); spiSendWord(0)  // h2_contr_gate
         spiSendWord(spiHdrCfgWrite(subpageAddr(21))); spiSendWord(0)  // sim_norm_mode = none
-        spiSendWord(spiHdrCfgWrite(subpageAddr(55))); spiSendWord(0)  // thr_i = 0
+        spiSendWord(spiHdrCfgWrite(subpageAddr(127))); spiSendWord(0)  // thr_i = 0
         // DST parameters (cadence, K, scan window, seeds)
         spiSendWord(spiHdrCfgWrite(subpageAddr(92))); spiSendWord(4)  // cfg_dyn_x_h1
         spiSendWord(spiHdrCfgWrite(subpageAddr(93))); spiSendWord(4)  // cfg_dyn_x_h2
@@ -262,7 +262,7 @@ class ELFCoreCoreChiselSpec extends AnyFlatSpec with ChiselScalatestTester {
             dut.io.LABEL_VALID.poke(false.B)
             dut.io.LABEL_INDEX.poke(0.U)
             pulseSample()
-            (0 until 12).foreach { _ => aerSendAddr(scala.util.Random.nextInt(dut.N_INP)) }
+            (0 until 12).foreach { _ => aerSendAddr(rng.nextInt(dut.N_INP)) }
             pulseTick(); pulseTick()
           }
         }
